@@ -21,7 +21,6 @@ const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 
 app.listen(port, host, async () => {
     await dataBase.connect();
-    await runSeeders(dataSource);
 
     console.log(`[ ready ] http://${host}:${port}`);
 });

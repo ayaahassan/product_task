@@ -13,7 +13,5 @@ export const dbOptions: DataSourceOptions & SeederOptions = {
 	synchronize: true,
 	logging: false,
 	entities: ['**/entities/*.ts'],
-	seeds: ["**/seeds/**/*.ts"],
-	factories: ["**/factories/**/*.ts"]
-
+	
 }

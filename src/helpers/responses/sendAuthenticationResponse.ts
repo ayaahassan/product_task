@@ -11,7 +11,7 @@ export const sendAuthenticationResponse = (user: User, res: Response) => {
 	const accessToken = jwt.sign(
 		{ user: userData },
 		configurations().secret,
-		{ expiresIn: '1h' }
+		{ expiresIn: '4h' }
 		// (err: any, token: any) => {
 		// 	res.status(200).json({
 		// 		success: true,

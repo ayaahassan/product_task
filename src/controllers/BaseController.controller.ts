@@ -1,10 +1,11 @@
 import { ObjectLiteral, Repository } from 'typeorm'
 import { sendSuccessResponse } from '../helpers/responses/sendSuccessResponse'
 import { Request, Response } from 'express'
-import { sendNotFoundResponse } from '../helpers/responses/404.response'
 import { sendErrorResponse } from '../helpers/responses/sendErrorResponse'
 import { formatValidationErrors } from '../helpers/methods/formatValidationErrors'
 import { StatusCodes } from '../helpers/enums/StatusCodes'
+import { sendNotFoundResponse } from '../helpers/responses/404.response'
+import { unlink } from 'fs'
 
 export abstract class BaseController<Entity extends ObjectLiteral> {
 	repository: Repository<Entity>
@@ -12,9 +13,10 @@ export abstract class BaseController<Entity extends ObjectLiteral> {
 		this.repository = repo
 	}
 
-	async findAll(req: Request | any, res: Response, relations?: string[]) {
+	async findAll(req: Request | any, res: Response, relations?: any) {
 		try {
 			const userId = req.user?.id
+			console.log({ userId: req.user })
 			if (!userId) {
 				return sendErrorResponse(
 					['User not authenticated'],
@@ -24,9 +26,18 @@ export abstract class BaseController<Entity extends ObjectLiteral> {
 			}
 			const data: Entity[] = await this.repository.find({
 				relations,
-				where: { user: userId },
+				where: { 'user.id': userId },
 			})
-			sendSuccessResponse<Entity[]>(res, data)
+			const dataWithImageLinks = data.map((item: any) => {
+				if (item.image) {
+					return {
+						...item,
+						image: `${process.env.WEBSITE_URL}/public${item.image}`,
+					}
+				}
+				return item
+			})
+			sendSuccessResponse<Entity[]>(res, dataWithImageLinks)
 		} catch (error: any) {
 			sendErrorResponse(
 				formatValidationErrors(error),
@@ -48,11 +59,16 @@ export abstract class BaseController<Entity extends ObjectLiteral> {
 				)
 			}
 			const data = await this.repository.findOne({
-				where: { id: id as any, user: userId },
+				where: { id: id as any, 'user.id': userId },
 				relations,
 			})
-			if (data) {
-				sendSuccessResponse<Entity>(res, data)
+			if (data?.image) {
+				const dataWithImageLinks = {
+					...data,
+					image: `${process.env.WEBSITE_URL}/public${data.image}`,
+				}
+
+				sendSuccessResponse<Entity>(res, dataWithImageLinks)
 			} else {
 				sendNotFoundResponse(res)
 			}
@@ -65,18 +81,19 @@ export abstract class BaseController<Entity extends ObjectLiteral> {
 		}
 	}
 
-	async create(req: Request|any, res: Response) {
-		console.log("in create")
+	async create(req: Request | any, res: Response) {
+		console.log('in create,')
 		try {
-			let imagePath=""
+			let imagePath = ''
 			if (req.file) {
-				imagePath = req.file.path;
+				// imagePath = req.file.path;
+				imagePath = `/uploads/${req.file.filename}`
 			}
 			const entityWithUserId = {
 				...req.body,
-				image:imagePath,
-				userId: req.user.userId 
-			};
+				image: imagePath,
+				user: req.user.id,
+			}
 			const entity = this.repository.create(entityWithUserId)
 			const savedEntity = await this.repository.save(entity)
 			sendSuccessResponse<Entity>(res, savedEntity)
@@ -89,10 +106,10 @@ export abstract class BaseController<Entity extends ObjectLiteral> {
 		}
 	}
 
-	protected async update(req: Request | any, res: Response) {
+	async update(req: Request | any, res: Response) {
 		try {
 			const id = +req.params.id
-			await this.repository.update(id, req.body)
+			let updateData = { ...req.body }
 			const userId = req.user?.id
 			if (!userId) {
 				return sendErrorResponse(
@@ -101,8 +118,23 @@ export abstract class BaseController<Entity extends ObjectLiteral> {
 					StatusCodes.NOT_AUTHORIZED
 				)
 			}
+			const data = await this.repository.findOne({
+				where: { id: id as any, 'user.id': userId },
+			})
+			if (data && req.file) {
+				updateData.image = `/uploads/${req.file.filename}`
+
+				unlink(data?.image, (err) => {
+					if (err) {
+						console.error('Error deleting old image:', err)
+					}
+				})
+			}
+
+			const updateResult = await this.repository.update(id, updateData)
+
 			const updatedEntity = await this.repository.findOne({
-				where: { id: id as any, user: userId },
+				where: { id: id as any, 'user.id': userId },
 			})
 			if (updatedEntity) {
 				sendSuccessResponse<Entity>(res, updatedEntity)
@@ -136,7 +168,18 @@ export abstract class BaseController<Entity extends ObjectLiteral> {
 					StatusCodes.NOT_AUTHORIZED
 				)
 			}
+			const data = await this.repository.findOne({
+				where: { id: id as any, 'user.id': userId },
+			})
+			
 			const deletedEntity = await this.repository.delete(id)
+			if (data ) {
+				unlink(data?.image, (err) => {
+					if (err) {
+						console.error('Error deleting old image:', err)
+					}
+				})
+			}
 			if (deletedEntity.affected && deletedEntity.affected > 0) {
 				sendSuccessResponse(res, { message: 'Entity deleted successfully' })
 			} else {

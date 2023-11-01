@@ -14,16 +14,16 @@ const isAuthenticated = async (
 
 	if (bearerHeader !== undefined && bearerHeader.includes('Bearer ')) {
 		const Token = bearerHeader.split(' ')[1]
-
-		jwt.verify(Token, configurations().secret, (error: any, user: any) => {
+		jwt.verify(Token, configurations().secret, (error: any, decoded: any) => {
 			if (error) {
+        console.log("eeeeee",error)
 				sendErrorResponse(
 					formatValidationErrors(error),
 					res,
 					StatusCodes.NOT_AUTHORIZED
 				)
 			}
-			req['user'] = user
+			req['user'] = decoded.user
 			next()
 		})
 	} else {

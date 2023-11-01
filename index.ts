@@ -5,6 +5,7 @@ import express from "express";
 import { dataBase, dataSource } from "./src/config/database/data-source";
 import { runSeeders } from "typeorm-extension";
 import router from "./src/routes/routes";
+import path from "path";
 
 const app = express();
 
@@ -13,10 +14,10 @@ app.use(cookieParser())
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
-
+app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use('/api', router)
 const host = process.env.HOST ?? 'localhost';
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-app.use('/api', router)
 
 app.listen(port, host, async () => {
     await dataBase.connect();
